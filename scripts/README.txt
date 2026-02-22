@@ -1,3 +1,14 @@
+To set build the environment.
+
+ 1002  git clone https://github.com/brettin/Aurora-Swarm
+ 1003  cd Aurora-Swarm/
+ 1004  module load frameworks
+ 1005  conda create -p /lus/flare/projects/ModCon/brettin/conda_envs/swarm python=3
+ 1006  conda activate /lus/flare/projects/ModCon/brettin/conda_envs/swarm
+ 1007  pip install -e .
+ 1008  vi env.sh 
+
+
 In one window.
 
 # The SCRIPT_DIR needs to be updated in submit_oss120b.sh
