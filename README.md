@@ -26,19 +26,18 @@ cd Aurora-Swarm
 
 ### 2. Create and activate a Conda environment
 
-**On HPC (e.g. Aurora):** load the frameworks module and activate the project conda env before any `pip install`:
+**On HPC (e.g. Aurora):** load the frameworks module, create a conda env, and activate the conda env before any `pip install`:
 
 ```bash
 module load frameworks
+conda create -p /lus/flare/projects/ModCon/brettin/conda_envs/swarm python=3
 conda activate /lus/flare/projects/ModCon/brettin/conda_envs/swarm
 ```
 
-**Otherwise**, create and activate a local env:
+Update the Aurora-Swarm/env.sh file to include the new conda environment that you just created.
 
 ```bash
-module load frameworks
-conda create -n aurora-swarm python=3.11 -y
-conda activate aurora-swarm
+cat env.sh
 ```
 
 ### 3. Install the package
