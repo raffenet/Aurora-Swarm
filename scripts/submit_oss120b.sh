@@ -1,11 +1,11 @@
 #!/bin/bash
 #PBS -N gpt_oss_120b_vllm
-#PBS -l walltime=01:00:00
+#PBS -l walltime=00:30:00
 #PBS -A ModCon
 #PBS -q debug-scaling
 #PBS -o output.log
 #PBS -e error.log
-#PBS -l select=4
+#PBS -l select=16
 #PBS -l filesystems=flare:home
 #PBS -l place=scatter
 #PBS -j oe
@@ -22,6 +22,7 @@ MODEL_NAME=$(basename "$MODEL_PATH" | sed 's/^models--//' | sed 's/--/\//')
 STAGE_WEIGHTS=${STAGE_WEIGHTS:-1}     # 1=stage model weights to /tmp, 0=skip staging
 STAGE_CONDA=${STAGE_CONDA:-1}         # 1=stage conda environment to /tmp, 0=skip staging
 USE_FRAMEWORKS=${USE_FRAMEWORKS:-0}   # 1=use frameworks module, 0=use conda environment
+BLACKBOARD=${BLACKBOARD:-0}           # 1=use blackboard mode, 0=use normal mode
 
 # vLLM server settings
 VLLM_HOST_PORT=${VLLM_HOST_PORT:-6739}
@@ -45,10 +46,33 @@ start_vllm_on_host() {
 
 # Write host and port in tab-delimited format to hostfile.
 # Truncates (empties) the hostfile to prepare it for writing a fresh list of hosts for this run.
-: > "$SCRIPT_DIR/hostfile"
-while read -r node; do
-    echo -e "${node}\t${VLLM_HOST_PORT}" >> "$SCRIPT_DIR/hostfile"
-done < "$PBS_NODEFILE"
+if [ "$BLACKBOARD" -eq 1 ]; then
+    # Read nodes into an array and remove domain name
+    mapfile -t all_nodes < <(cut -d'.' -f1 "$PBS_NODEFILE")
+    total_nodes=${#all_nodes[@]}
+    half_nodes=$((total_nodes / 2))
+    # If odd, first half will be 1 greater
+    if [ $((total_nodes % 2)) -ne 0 ]; then
+        half_nodes=$((half_nodes + 1))
+    fi
+    : > "$SCRIPT_DIR/hostfile"  # Truncate before writing
+
+    for i in "${!all_nodes[@]}"; do
+        node="${all_nodes[$i]}"
+        if [ "$i" -lt "$half_nodes" ]; then
+            # First half - role=hypotheses
+            echo -e "${node}\t${VLLM_HOST_PORT}\trole=hypotheses" >> "$SCRIPT_DIR/hostfile"
+        else
+            # Second half - role=critiques
+            echo -e "${node}\t${VLLM_HOST_PORT}\trole=critiques" >> "$SCRIPT_DIR/hostfile"
+        fi
+    done
+else
+    : > "$SCRIPT_DIR/hostfile"
+    while read -r node; do
+        echo -e "${node}\t${VLLM_HOST_PORT}" >> "$SCRIPT_DIR/hostfile"
+    done < "$PBS_NODEFILE"
+fi
 
 echo "$(date) vLLM Multi-Node Deployment"
 echo "$(date) Script directory: $SCRIPT_DIR"

@@ -143,11 +143,14 @@ async def run_blackboard_with_logging(
     max_rounds: int,
     convergence_fn: Callable[[BoardState], bool] | None,
     log_dir: Path,
+    initial_hypotheses: list[str] | None = None,
 ) -> tuple[BoardState, int]:
     """Run blackboard loop (same logic as Blackboard.run) and log each prompt/response.
     Returns (final_board, rounds_completed).
     """
     board: BoardState = {s: [] for s in sections}
+    if initial_hypotheses:
+        board["hypotheses"].extend(initial_hypotheses)
     round_num = 0
     for _ in range(max_rounds):
         for section in sections:
@@ -229,6 +232,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Stop when total board entries >= N (optional)",
     )
+    parser.add_argument(
+        "--initial-hypothesis",
+        action="append",
+        default=None,
+        metavar="TEXT",
+        help="Optional seed hypothesis to put on the board before round 1 (can be repeated)",
+    )
     return parser.parse_args()
 
 
@@ -256,6 +266,8 @@ async def main() -> int:
 
     print_with_timestamp("Blackboard Example (prompt size control + optional logging)")
     print_with_timestamp(f"Endpoints: {len(endpoints)}, board-limit: {args.board_limit}, value: {args.board_limit_value}")
+    if args.initial_hypothesis:
+        print_with_timestamp(f"Initial hypotheses: {len(args.initial_hypothesis)}")
     if args.log_dir:
         print_with_timestamp(f"Logging to: {args.log_dir}")
 
@@ -278,6 +290,8 @@ async def main() -> int:
 
             convergence_fn = converge
 
+        initial_hypotheses = args.initial_hypothesis or []
+
         start = datetime.now()
         if args.log_dir:
             final_board, rounds_run = await run_blackboard_with_logging(
@@ -287,9 +301,12 @@ async def main() -> int:
                 args.max_rounds,
                 convergence_fn,
                 args.log_dir,
+                initial_hypotheses=initial_hypotheses,
             )
         else:
             bb = Blackboard(sections=sections, prompt_fn=prompt_fn)
+            if initial_hypotheses:
+                bb.board["hypotheses"].extend(initial_hypotheses)
             final_board = await bb.run(
                 pool,
                 max_rounds=args.max_rounds,
