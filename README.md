@@ -191,6 +191,17 @@ async with AgentPool(endpoints, concurrency=512) as pool:
     print(response.text)
 ```
 
+### Pools and connections
+
+Understanding how connections are managed helps when scaling to many agents:
+
+- **Connection** — A single TCP link from your process to one agent (one host:port). Many vLLM servers mean many such connections; the library reuses them via a connection pool.
+- **Session and connector** — There is **one** `aiohttp.ClientSession` (and one `TCPConnector`) per **pool tree**: the pool you create with `async with VLLMPool(...) as pool` plus any sub-pools you get from `pool.by_tag()`, `pool.sample()`, etc. Sub-pools share that single session; they do not create their own.
+- **connector_limit** — The connector is a *connection pool*: it can open up to `connector_limit` TCP connections (default 1024) to your many agents. So you have one logical “client” (session + connector) per pool tree, but many actual TCP connections to the many servers. Set via the constructor only (e.g. `VLLMPool(..., connector_limit=1024)`); there is no property getter.
+- **Lifecycle** — The **parent** pool creates the session when you enter the `async with` block. All sub-pools use that same session. When the block exits, only the parent’s `close()` runs, which closes the shared session and connector. Always use the pool as a context manager so the session is closed and you avoid “Unclosed connector” warnings.
+
+See the [Pools and connections](https://brettin.github.io/Aurora-Swarm/pools_and_connections.html) documentation for a diagram and more detail.
+
 ### Communication Patterns
 
 | Pattern | Description |

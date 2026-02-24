@@ -69,6 +69,7 @@ Documentation
 
    batch_prompting
    context_length
+   pools_and_connections
    aggregators
    api
 
