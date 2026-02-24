@@ -85,6 +85,7 @@ class AgentPool:
             await self._session.close()
 
     async def __aenter__(self) -> "AgentPool":
+        await self._get_session()  # Eagerly create session so parent owns it; sub-pools share it and close() on exit closes it
         return self
 
     async def __aexit__(self, *exc: object) -> None:
