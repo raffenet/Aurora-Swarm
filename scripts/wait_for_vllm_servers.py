@@ -66,13 +66,25 @@ def _endpoint_to_line(ep: AgentEndpoint) -> str:
     return "\t".join(parts)
 
 
-def _check_health(ep: AgentEndpoint, timeout: float = CONNECT_TIMEOUT) -> bool:
+def _check_health(
+    ep: AgentEndpoint,
+    timeout: float = CONNECT_TIMEOUT,
+    log: logging.Logger | None = None,
+) -> bool:
     url = f"{ep.url}{HEALTH_PATH}"
     try:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status == 200
-    except Exception:
+            ok = resp.status == 200
+            if log:
+                if ok:
+                    log.debug("  OK  %s (HTTP %s)", url, resp.status)
+                else:
+                    log.debug("  FAIL %s (HTTP %s)", url, resp.status)
+            return ok
+    except Exception as exc:
+        if log:
+            log.debug("  FAIL %s (%s: %s)", url, type(exc).__name__, exc)
         return False
 
 
@@ -117,7 +129,7 @@ def _run_health_phase(
         for ep in endpoints:
             if (ep.host, ep.port) in healthy_keys:
                 continue
-            if _check_health(ep):
+            if _check_health(ep, log=log):
                 healthy_keys.add((ep.host, ep.port))
                 healthy_list.append(ep)
                 newly_healthy += 1
