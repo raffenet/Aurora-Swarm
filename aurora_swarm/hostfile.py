@@ -46,13 +46,22 @@ def parse_hostfile(path: str | Path) -> list[AgentEndpoint]:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            parts = line.split('\t')
-            host = parts[0]
-            # Port is in second column, defaults to 8000 if not provided
-            if len(parts) > 1 and parts[1].isdigit():
+            # Support both tab-separated and whitespace-separated formats.
+            # Also support "host:port" as the first token.
+            parts = line.split('\t') if '\t' in line else line.split()
+            first = parts[0]
+            if ":" in first:
+                # "host:port" combined token
+                raw_host, _, raw_port = first.rpartition(":")
+                host = raw_host
+                port = int(raw_port) if raw_port.isdigit() else 8000
+                tag_start = 1
+            elif len(parts) > 1 and parts[1].isdigit():
+                host = first
                 port = int(parts[1])
                 tag_start = 2
             else:
+                host = first
                 port = 8000
                 tag_start = 1
             # Parse optional tags from remaining columns
