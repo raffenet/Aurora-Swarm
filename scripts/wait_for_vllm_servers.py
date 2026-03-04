@@ -109,6 +109,7 @@ def _run_health_phase(
     healthy_list: list[AgentEndpoint] = []
     healthy_keys: set[tuple[str, int]] = set()  # (host, port) for O(1) membership
     first_healthy_time: float | None = None
+    phase_start = time.monotonic()
     total = len(endpoints)
 
     while True:
@@ -136,10 +137,15 @@ def _run_health_phase(
             log.info("All %d vLLM servers are ready.", total)
             return healthy_list, []
 
-        if first_healthy_time is not None:
-            elapsed = time.monotonic() - first_healthy_time
-            if elapsed >= health_timeout:
-                skipped = [ep for ep in endpoints if (ep.host, ep.port) not in healthy_keys]
+        elapsed_since_first = (
+            time.monotonic() - first_healthy_time if first_healthy_time is not None else None
+        )
+        elapsed_since_start = time.monotonic() - phase_start
+        if (elapsed_since_first is not None and elapsed_since_first >= health_timeout) or (
+            first_healthy_time is None and elapsed_since_start >= health_timeout
+        ):
+            skipped = [ep for ep in endpoints if (ep.host, ep.port) not in healthy_keys]
+            if skipped:
                 log.warning(
                     "Health-phase timeout (%.0fs) reached. %d node(s) did not become healthy in time and will be omitted:",
                     health_timeout,
@@ -147,7 +153,12 @@ def _run_health_phase(
                 )
                 for ep in skipped:
                     log.warning("  skipped (took too long): %s:%s", ep.host, ep.port)
-                return healthy_list, skipped
+            if first_healthy_time is None:
+                log.error(
+                    "No nodes became healthy within %.0fs. Check that endpoints are reachable and serving /health.",
+                    health_timeout,
+                )
+            return healthy_list, skipped
 
         time.sleep(interval)
 
